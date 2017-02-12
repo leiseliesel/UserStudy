@@ -1,1 +1,1 @@
-echo '# UserStudy' 
+# UserStudy
