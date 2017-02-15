@@ -47,12 +47,14 @@ import android.view.Display;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.View;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import org.rajawali3d.scene.ASceneFrameCallback;
 import org.rajawali3d.view.SurfaceView;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.projecttango.tangosupport.TangoSupport;
@@ -564,6 +566,43 @@ public class AugmentedRealityActivity extends Activity implements View.OnTouchLi
         if(event.getAction() == MotionEvent.ACTION_DOWN) {
             // this needs to be defined on the renderer
             mRenderer.getObjectAt(event.getX(), event.getY());
+            if (mRenderer.getSceneNr() == 30) {
+                List<Scene> scenes = mRenderer.getScenes();
+
+                setContentView(R.layout.results);
+                TextView results = (TextView) findViewById(R.id.results);
+
+                long avgNF = 0;
+                long avgUS = 0;
+                long avgSS = 0;
+
+                int nf = 0;
+                int us = 0;
+                int ss = 0;
+
+                for(int i = 1; i < scenes.size(); i++){
+
+
+                    if (scenes.get(i).getFilter() == 0x007b4208) { // Sepia saturized
+                        ss++;
+                        avgSS += scenes.get(i).getReactionTime();
+                    } else if (scenes.get(i).getFilter() == 0x0064411f) { // Sepia unsaturized
+                        us++;
+                        avgUS += scenes.get(i).getReactionTime();
+                    } else {
+                        nf++;
+                        avgNF += scenes.get(i).getReactionTime();
+                    }
+                }
+
+                avgSS = avgSS/ss;
+                avgUS = avgUS/us;
+                avgNF = avgNF/nf;
+
+                String text = "No Filter: " + avgNF + " Sepia saturized: " + avgSS + " Sepia unsaturized: " + avgUS;
+
+                results.setText(text);
+            }
         }
         return true;
     }
