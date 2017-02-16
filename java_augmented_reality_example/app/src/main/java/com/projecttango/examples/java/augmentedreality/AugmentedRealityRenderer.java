@@ -93,6 +93,7 @@ public class AugmentedRealityRenderer extends Renderer implements OnObjectPicked
     private Material tangoCameraMaterial;
     private ReferenceObjects referenceObjects;
     private List<ARObject> unusedCombinations;
+    private boolean allCombinationsUsed;
 
     // position of touch event
     private float x;
@@ -114,6 +115,11 @@ public class AugmentedRealityRenderer extends Renderer implements OnObjectPicked
     private long stop;
     private List<Long> reactionTimes;
 
+    // trackt die verwendung der einzelnen filter
+    int nf;
+    int us;
+    int ss;
+
     public AugmentedRealityRenderer(Context context) {
         super(context);
         mPicker = new ObjectColorPicker(this);
@@ -127,6 +133,7 @@ public class AugmentedRealityRenderer extends Renderer implements OnObjectPicked
         // werden neue Distraktoren gewürfelt, werden nur Objekte aus dieser Liste entnommen
         // um sicherzustellen, dass alle Kombinationen 1* vorkamen
         unusedCombinations = referenceObjects.getReferenceList();
+        allCombinationsUsed = false;
 
         firstScene = true;
         sceneNr = 0;
@@ -137,6 +144,10 @@ public class AugmentedRealityRenderer extends Renderer implements OnObjectPicked
         numOfDistractors.add(3);
         numOfDistractors.add(5);
         numOfDistractors.add(7);
+
+        nf = 0;
+        us = 0;
+        ss = 0;
 
         scenes = new ArrayList<Scene>();
         reactionTimes = new ArrayList<Long>();
@@ -167,7 +178,7 @@ public class AugmentedRealityRenderer extends Renderer implements OnObjectPicked
             /**
              * only the target gets displayed on the first scene*/
 
-            target.setPosition(0, 0, -5);
+            target.setPosition(0, 0, -3.5f);
             target.setDoubleSided(true);
             target.setName("Target");
             getCurrentScene().addChild(target);
@@ -222,7 +233,7 @@ public class AugmentedRealityRenderer extends Renderer implements OnObjectPicked
     private void initializePositionSet() {
         float x = -1.2f;
         float y = -0.75f;
-        float z = -3;
+        float z = -3.5f;
 
         positions = new ArrayList<Position>();
         Position position;
@@ -275,7 +286,7 @@ public class AugmentedRealityRenderer extends Renderer implements OnObjectPicked
 
         if (object.getForm() == ARObject.Form.CUBE) {
             objectMaterial.setColor(object.getColor());
-            newObject = new Cube(0.25f);
+            newObject = new Cube(0.4f);
             newObject.setMaterial(objectMaterial);
 
         } else if(object.getForm() == ARObject.Form.SPHERE) {
@@ -331,7 +342,6 @@ public class AugmentedRealityRenderer extends Renderer implements OnObjectPicked
         SceneObject sceneTarget = new SceneObject(arTarget, target.getPosition() );
         scene = new Scene(sceneNr, sceneTarget, filter);
         SceneObject distractor = new SceneObject(arDistractor, distractor1.getPosition());
-        scene.addDistractor(distractor);
 
         // setze filter
         if(filter == 0x000000) {
@@ -340,6 +350,11 @@ public class AugmentedRealityRenderer extends Renderer implements OnObjectPicked
             tangoCameraMaterial.setColorInfluence(1);
             mBackgroundQuad.setColor(filter);
         }
+
+        //delay();
+        start = System.currentTimeMillis();
+
+        scene.addDistractor(distractor);
 
         arDistractor = getRandomDistractor(false, true);
         // distractor2 wird anhand des Filters von distractor1 und der Farbe ausgewählt
@@ -399,18 +414,39 @@ public class AugmentedRealityRenderer extends Renderer implements OnObjectPicked
             // Erstelle neue Liste mit distraktoren der gleichen form wie target
             List<ARObject> distractorsForm = new ArrayList<ARObject>();
 
-            // gehe distraktoren durch und matche nach form
+            // gehe distraktoren durch und matche nach form und noch nicht vollständig genutzten filtern
             for(int i = 0; i < distractors.size(); i++) {
                 if(distractors.get(i).getForm() == arTarget.getForm()) {
-                    distractorsForm.add(distractors.get(i));
+                    if ((distractors.get(i).getFilter() == 0x007b4208) && (ss < 10)) {
+                        distractorsForm.add(distractors.get(i));
+                    } else if ((distractors.get(i).getFilter() == 0x0064411f) && (us < 10)){
+                        distractorsForm.add(distractors.get(i));
+                    } else if ((distractors.get(i).getFilter() == 0x00000000) && (nf < 10)) {
+                        distractorsForm.add(distractors.get(i));
+                    } else if ( (ss == 10) && (us == 10) && nf == 10) {
+                        distractorsForm.add(distractors.get(i));
+                    }
                 }
             }
 
             // hole objekt an zufälliger stelle in neuer Liste
-            max = distractorsForm.size() - 1;
-            randomObj = rand.nextInt(max + 1);
+            if (distractorsForm.size() > 0) {
+                max = distractorsForm.size() - 1;
+                randomObj = rand.nextInt(max + 1);
+                distractor = distractorsForm.get(randomObj);
+            } else {
+                max = distractors.size() - 1;
+                randomObj = rand.nextInt(max + 1);
+                distractor = distractors.get(randomObj);
+            }
 
-            distractor = distractorsForm.get(randomObj);
+            if (distractor.getFilter() == 0x007b4208) {
+                ss++;
+            } else if (distractor.getFilter() == 0x0064411f) {
+                us++;
+            } else if (distractor.getFilter() == 0x00000000) {
+                nf++;
+            }
 
             // entferne target mit filter kombi aus unusedCombinations
             for(int i = 0; i < unusedCombinations.size(); i++) {
@@ -536,14 +572,11 @@ public class AugmentedRealityRenderer extends Renderer implements OnObjectPicked
         int maxDelay = 2000;
         final int delay = rand.nextInt(maxDelay + 1);
 
-        Runnable r = new Runnable() {
-            @Override
-            public void run() {
-                // TODO render new scene (initscene)
-            }};
-
-        Handler mHandler = new Handler();
-        mHandler.postDelayed(r, delay);
+        try {
+            Thread.sleep(delay);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
 
@@ -666,8 +699,6 @@ public class AugmentedRealityRenderer extends Renderer implements OnObjectPicked
                 }
                 // TODO save shown objects, scenenumber and target
             }
-            //delay();
-            start = System.currentTimeMillis();
             getCurrentScene().clearChildren();
             initScene();
         } else {
@@ -683,11 +714,13 @@ public class AugmentedRealityRenderer extends Renderer implements OnObjectPicked
     @Override
     public void onNoObjectPicked() {
         mBackgroundQuad.setVisible(true);
-        long missedTime = System.currentTimeMillis() - start;
-        Position position = new Position(x ,y ,0);
-        Touch missedTouch = new Touch(position, missedTime, mBackgroundQuad.getName());
-        scene.addTouch(missedTouch);
 
+        if(scene != null) {
+            long missedTime = System.currentTimeMillis() - start;
+            Position position = new Position(x ,y ,0);
+            Touch missedTouch = new Touch(position, missedTime, mBackgroundQuad.getName());
+            scene.addTouch(missedTouch);
+        }
     }
 
 }

@@ -32,13 +32,17 @@ import com.google.atap.tangoservice.TangoXyzIjData;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.Camera;
 import android.hardware.display.DisplayManager;
+import android.net.Uri;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
 import android.os.Bundle;
+import android.os.Environment;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.DisplayMetrics;
@@ -47,13 +51,23 @@ import android.view.Display;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.View;
+import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import org.rajawali3d.scene.ASceneFrameCallback;
 import org.rajawali3d.view.SurfaceView;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -566,8 +580,9 @@ public class AugmentedRealityActivity extends Activity implements View.OnTouchLi
         if(event.getAction() == MotionEvent.ACTION_DOWN) {
             // this needs to be defined on the renderer
             mRenderer.getObjectAt(event.getX(), event.getY());
-            if (mRenderer.getSceneNr() == 30) {
-                List<Scene> scenes = mRenderer.getScenes();
+            if (mRenderer.getSceneNr() == 31) {
+
+                final List<Scene> scenes = mRenderer.getScenes();
 
                 setContentView(R.layout.results);
                 TextView results = (TextView) findViewById(R.id.results);
@@ -581,7 +596,6 @@ public class AugmentedRealityActivity extends Activity implements View.OnTouchLi
                 int ss = 0;
 
                 for(int i = 1; i < scenes.size(); i++){
-
 
                     if (scenes.get(i).getFilter() == 0x007b4208) { // Sepia saturized
                         ss++;
@@ -599,11 +613,72 @@ public class AugmentedRealityActivity extends Activity implements View.OnTouchLi
                 avgUS = avgUS/us;
                 avgNF = avgNF/nf;
 
-                String text = "No Filter: " + avgNF + " Sepia saturized: " + avgSS + " Sepia unsaturized: " + avgUS;
+                final String text = "No Filter: " + avgNF + "ms ,used " + nf + " times\n" + "Sepia saturized: " + avgSS + "ms ,used " + ss + " times\n" + "Sepia unsaturized: " + avgUS + "ms ,used " + us + " times\n";
 
                 results.setText(text);
+
+                Button sendMail = (Button) findViewById(R.id.button);
+
+                sendMail.setOnClickListener(new View.OnClickListener() {
+                    public void onClick(View v) {
+                        // Perform action on click
+                        saveScenesInTextfile(scenes, text);
+                    }
+                });
             }
         }
         return true;
+    }
+
+    private void saveScenesInTextfile(List<Scene> scenes, String results) {
+        DateFormat df = new SimpleDateFormat("HH:mm");
+        String time = df.format(Calendar.getInstance().getTime());
+
+        df = new SimpleDateFormat("yyyy/MM/dd");
+        String date = df.format(Calendar.getInstance().getTime());
+
+        String content = "Target:\n" + "Form: " + scenes.get(1).getTarget().getObject().getForm() + " ,color: " + scenes.get(1).getTarget().getObject().getColor() + "\n\n";
+
+        for(int i = 1; i < scenes.size(); i++) {
+
+            content += "Filter: " + scenes.get(i).getFilter() + " ,Time: " + scenes.get(i).getReactionTime() + "\nTarget position: " + scenes.get(i).getTarget().getPosition() + "\nDistractors: ";
+
+            List<SceneObject> distractors = scenes.get(i).getDistractors();
+
+            for(int j = 0; j < distractors.size(); j++ ) {
+                content += distractors.get(j).getObject().getForm() + "(" + distractors.get(j).getObject().getColor() + ", " + distractors.get(j).getPosition() + ")";
+            }
+
+            content += "\nMissed: ";
+
+            List<Touch> missed = scenes.get(i).getMissedTips();
+
+            for(int j = 0; j < missed.size(); j++ ) {
+                content += missed.get(j).getTouch() + ", ";
+            }
+
+            content += "\n\n";
+
+        }
+
+        content += results;
+
+        String to[] = {"andre@teco.edu"};
+
+        Intent emailIntent = new Intent(Intent.ACTION_SEND);
+        emailIntent.setData(Uri.parse("mailto:"));
+        emailIntent.setType("text/plain");
+        emailIntent.putExtra(Intent.EXTRA_EMAIL , to);
+        emailIntent.putExtra(Intent.EXTRA_SUBJECT, "User study");
+        emailIntent.putExtra(Intent.EXTRA_TEXT, content);
+
+        try {
+            startActivity(Intent.createChooser(emailIntent, "Send mail..."));
+            finish();
+            Log.i("Finished sending email", "");
+        } catch (android.content.ActivityNotFoundException ex) {
+            Toast.makeText(this, "There is no email client installed.", Toast.LENGTH_SHORT).show();
+        }
+
     }
 }
